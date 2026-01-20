@@ -1,0 +1,43 @@
+name: CI
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: nebula
+          POSTGRES_PASSWORD: nebula
+          POSTGRES_DB: nebula_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U nebula" --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Lint
+        run: |
+          pip install black flake8
+          black --check src/ tests/
+          flake8 src/ tests/
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://nebula:nebula@localhost:5432/nebula_test
+        run: |
+          pip install pytest
+          pytest -v
+      - name: Build Docker image
+        run: docker build -t nebula-mvp:latest .
